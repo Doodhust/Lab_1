@@ -1,100 +1,67 @@
-import math
 import numpy as np
+import time
 
-np.set_printoptions(precision=7)
+start_time = time.time()
 
-A = np.array([[2.12, 0.48, 1.34, 0.88, 11.172],
-              [0.42, 3.95, 1.87, 0.43, 0.115],
-              [1.34, 1.87, 2.98, 0.46, 9.009],
-              [0.88, 0.43, 0.46, 4.44, 9.349]]).astype(float)
-AllMatrix = [A]
-print(A)
-RMatrix = []
-n = len(A)
+A = np.matrix([[0.411, 0.421, -0.333, 0.313, -0.141, -0.381, 0.245],
+              [0.241, 0.705, 0.139, -0.409, 0.321, 0.0625, 0.101],
+              [0.123, -0.239, 0.502, 0.901, 0.243, 0.819, 0.321],
+              [0.413, 0.309, 0.801, 0.865, 0.423, 0.118, 0.183],
+              [0.241, -0.221, -0.243, 0.134, 1.274, 0.712, 0.423],
+              [0.281, 0.525, 0.719, 0.118, -0.974, 0.808, 0.923],
+              [0.246, -0.301, 0.231, 0.813, -0.702, 1.223, 1.105]])
 
+b = np.matrix([0.096, 1.252, 1.024, 1.023, 1.155, 1.937, 1.673])
 
-def vectornormali(a, k):
-    p_stepk_ = np.zeros(k)  # [0]
-    p_stepk_k_ = np.zeros(n - k)  # [].. size = 2 [0,0]
+def QR(A):
+    n = A.shape[0]
+    R = A.copy()
+    Q = np.matrix(np.eye(n))
+    for k in range(n):
+        p = np.zeros(n)
+        s = sum(a[0, 0] ** 2 for a in R[k:, k]) ** 0.5
+        sigma = -1 + 2 * int(R[k, k] > 0) # -1 или +1
+        p[k] = R[k, k] + sigma * s
+        p[k + 1:] = R[k + 1:, k].T
+        s = sum(a ** 2 for a in p)
+        Pk = np.matrix(np.eye(n))
+        for i in range(n):
+            for j in range(n):
+                Pk[i, j] -= 2 * p[i] * p[j] / s
 
-    a = [row[k] for row in a]
-    a = a[k:n]
-
-    for i in range(n - k):  # 0..2  #1...2
-        if (i == 0):
-            if (a[i] >= 0):
-                sigma_k = 1
-                p_stepk_k_[0] = a[i] + sigma_k * (math.sqrt(sum(a[l] ** 2 for l in range(i, n - k))))
-            else:
-                sigma_k = -1
-                p_stepk_k_[0] = a[i] + sigma_k * (math.sqrt(sum(a[l] ** 2 for l in range(i, n - k))))
-        else:
-            p_stepk_k_[i] = a[i]  # p_stepk_k_[1] = a[1][0]
-
-    p_stepk = np.hstack((p_stepk_, p_stepk_k_))
-    return p_stepk
-
-
-def solve_r(a_, k, r, p_stepk):
-    for i in range(k + 1, n + 1):  # 1,2,3
-        a_for_dot = [row[i] for row in a_]
-        for j in range(n):  # 0,1,2
-            r[i - 1][j] = 2 * p_stepk.dot(a_for_dot) * p_stepk[j] / (sum(p_stepk[l] ** 2 for l in range(k, n)))
-    r = np.transpose(r)
-
-    return r
+        R = Pk * R
+        Q = Q * Pk
+    return Q, R
 
 
-def solve_a(a_, p_stepk, k):
-    new_a = np.zeros((n, n + 1))
-    if (k > 0):
-        for i in range(0, k):
-            new_a[i] = a_[i]
-
-    sigma = 1
-    new_a[k][k] = -sigma * math.sqrt(sum(a_[l][k] ** 2 for l in range(k, n)))
-
-    for i in range(k, n):
-        for j in range(k + 1, n + 1):
-            new_a[i][j] = a_[i][j] - 2 * p_stepk[i] * (
-                    (sum(p_stepk[l] * a_[l][j] for l in range(k, n))) / (sum(p_stepk[l] ** 2 for l in range(k, n))))
-    return new_a
-
-
-def solve_x(g, r):
+def solve_mirror(A, b, n):
+    A = np.matrix(A)
+    b = np.matrix(b)
+    b = b.T
+    Q, R = QR(A)
+    n, *_ = A.shape
+    g = np.squeeze(np.asarray(Q.T * b))
     x = np.zeros(n)
-
-    x[n - 1] = g[n - 1] / r[n - 1][n - 1]
-
+    x[n - 1] = g[n - 1] / R[n - 1, n - 1]
     for i in range(n - 2, -1, -1):
-        x[i] = (g[i] - sum(r[i][j] * x[j] for j in range(i + 1, n))) / r[i][i]
+        x[i] = (g[i] - sum([R[i, j] * x[j] for j in range(i + 1, n)])) / R[i, i]
 
-    return x
+    return list(x)
 
 
-for k in range(n - 1):
-    a_ = np.copy(A)
-    p_stepk = vectornormali(a_, k)
-    s = np.linalg.norm((p_stepk)) ** 2
+x = solve_mirror(A, b, A.shape[0])
 
-    r = np.zeros((n, n))
-    r = solve_r(a_, k, r, p_stepk)
-    RMatrix.append(r)
+solution = np.dot(A, x)
+print(A)
 
-    A = solve_a(a_, p_stepk, k)
-    AllMatrix.append(A)
+print('Решение: ', x)
 
-A = AllMatrix[n - 1]
-R = A[:, :n]
-b = [row[-1] for row in A]
-x = solve_x(b, R)
-print("Решение: ", x)
+print("Погрешность: ", max(abs(np.ravel(solution) - np.ravel(b))))
 
-A = AllMatrix[0]
-a = A[:, :n]
-b = [row[-1] for row in A]
-print(np.linalg.solve(a, b))
+end_time = time.time()
+execution_time = (end_time - start_time) * 1000.
+print(f"Время выполнения программы: {execution_time} миллисекунд")
 
-solution = np.dot(a, x)
+cond_number = np.linalg.cond(A)
+print("Число обусловленности матрицы A:", cond_number)
 
-print("Погрешность: ", max(abs(solution - b)))
